@@ -32,8 +32,8 @@ fi
 
 for mod in $ENABLED; do
   SCRIPT="$MODS_DIR/$mod/run.sh"
-  if [ ! -x "$SCRIPT" ]; then
-    echo "[run_mods] ERROR: mod '$mod' not found/executable at $SCRIPT" >&2
+  if [ ! -f "$SCRIPT" ]; then
+    echo "[run_mods] ERROR: mod '$mod' not found at $SCRIPT" >&2
     exit 1
   fi
   echo "[run_mods] applying mod: $mod"

@@ -16,6 +16,7 @@ While it was primarily developed to support multi-node inference, it works just 
 - [3. Running the Container (Manual)](#3-running-the-container-manual)
 - [4. Configuration Details](#4-configuration-details)
 - [5. Mods and Patches](#5-mods-and-patches)
+- [5a. DSV4 Runtime Mods + VLLM_MODS Bridge (this fork)](#5a-dsv4-runtime-mods--vllm_mods-bridge-this-fork)
 - [6. Launch Scripts](#6-launch-scripts)
 - [7. Using cluster mode for inference](#7-using-cluster-mode-for-inference)
 - [8. Model Loading](#8-model-loading)
@@ -1763,6 +1764,26 @@ The new shell inherits the container environment, including NCCL, Ray, and vLLM 
 ## 5\. Mods and Patches
 
 The vLLM Docker setup supports applying custom mods and patches to address specific model compatibility issues or apply experimental features. This functionality is primarily managed through the `--apply-mod` option in the cluster launch script, and `run-recipe.sh` can pass additional `--apply-mod` flags through to `launch-cluster.sh`.
+
+### 5a. DSV4 Runtime Mods + VLLM_MODS Bridge (this fork)
+
+This fork adds two DSV4 mods and an env-driven toggle for them, without
+changing eugr's native mod system:
+
+- `mods/dsv4-kv-memory-estimate/` — fixes the per-request KV memory estimate
+  (DSV4 packed layout), lifting concurrency from ~1.5x to ~9x. Works for
+  fp8 and nvfp4 KV.
+- `mods/nvfp4-dsv4-kv/` — enables `nvfp4_ds_mla` KV (dtype gate + 576B
+  alignment + 584B envelope).
+
+Both are plain `run.sh` scripts (eugr-native; `--apply-mod` works). The image
+also bakes `mods/` into `/opt/mods` and ships `mods/run_mods.sh`, which applies
+mods listed in the `VLLM_MODS` env var (empty = stock). This is the
+Komodo-friendly path: deploy from the image with a command +
+`VLLM_MODS`, no host-side files.
+
+See [docs/dsv4-runtime-mods.md](docs/dsv4-runtime-mods.md) for the full
+toggle table and both deployment paths (compose Stack / image Deployment).
 
 ### Available Mods
 

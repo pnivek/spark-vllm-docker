@@ -10,6 +10,12 @@
 # Usage (in stack command, before `vllm serve ...`):
 #   VLLM_MODS="dsv4-kv-memory-estimate nvfp4-dsv4-kv" bash /opt/mods/run_mods.sh
 #
+# eugr-compat: this is an ADDITIVE bridge. eugr's native selection
+# (recipe `mods:` list / `launch-cluster.sh --apply-mod`) is untouched —
+# mods remain plain run.sh scripts in mods/. This loader only adds an
+# env-driven path for Komodo deployments (image + command, no host files).
+# See docs/dsv4-runtime-mods.md.
+#
 # Mods currently available (drop run.sh files into /opt/mods/<name>/):
 #   dsv4-kv-memory-estimate  — fix per-request KV memory estimate (fp8+nvfp4)
 #   nvfp4-dsv4-kv            — enable nvfp4_ds_mla KV (dtype gate+alignment)

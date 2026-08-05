@@ -192,6 +192,31 @@ replace(
     "alignment: 576B for nvfp4 (SWA cache)",
 )
 
+# ---- 3b. SWA KV shape: envelope-aware page size (must stay <= main MLA) ----
+replace(
+    "v1/attention/backends/mla/sparse_swa.py",
+    """        if cache_dtype_str == "fp8_ds_mla":
+            # DeepseekV4 SWA: 584B per token (448 NoPE + 128 RoPE + 8 fp8 scale).
+            # head_size passed in is the semantic head_dim (512).
+            return (num_blocks, block_size, 584)
+        else:
+            return (num_blocks, block_size, head_size)
+""",
+    f"""        if cache_dtype_str == "fp8_ds_mla":
+            # DeepseekV4 SWA: 584B per token (448 NoPE + 128 RoPE + 8 fp8 scale).
+            # head_size passed in is the semantic head_dim (512).
+            return (num_blocks, block_size, 584)
+        if cache_dtype_str == "nvfp4_ds_mla":
+            # SWA page must stay <= the full-MLA page or the uniform-groups
+            # invariant breaks (kv_cache_utils: max(sm) <= max(all)). Follow
+            # VLLM_NVFP4_ENVELOPE ({envelope}: 584 default, 432 true record).
+            return (num_blocks, block_size, {envelope_bytes})
+        else:
+            return (num_blocks, block_size, head_size)
+""",
+    "SWA KV shape: nvfp4 envelope",
+)
+
 # ---- 4. backend: advertise nvfp4_ds_mla + KV shape branch ----
 replace(
     "models/deepseek_v4/sparse_mla.py",

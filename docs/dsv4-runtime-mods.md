@@ -30,7 +30,8 @@ at container start. Selection is **not** env-driven:
 |---|---|
 | (unset / "") | stock eugr image (fp8 KV, concurrency ~1.5x) |
 | `dsv4-kv-memory-estimate` | honest per-request KV estimate (~9x concurrency) |
-| `nvfp4-dsv4-kv` | enable nvfp4_ds_mla KV (dtype gate + 576B alignment) |
+| `nvfp4-dsv4-kv` | enable nvfp4_ds_mla KV (dtype gate + alignment + envelope) |
+| `VLLM_NVFP4_ENVELOPE=432` (env, with above) | true NVFP4 record (432B) instead of fp8-compatible 584B page — ~1.35x more pool capacity; verify read-kernel path first |
 | `dsv4-kv-memory-estimate nvfp4-dsv4-kv` | current production config |
 
 Run order: memory-estimate first (independent), then nvfp4.

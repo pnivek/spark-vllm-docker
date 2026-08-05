@@ -17,11 +17,32 @@
 #      match what the b12x compressed-MLA kernels read.
 #
 # After this mod, run vllm with: --kv-cache-dtype nvfp4_ds_mla
+#
+# ENVELOPE TOGGLE: VLLM_NVFP4_ENVELOPE=<584|432> (default 584)
+#   584 = fp8-compatible 584B/token page (b12x compressed-MLA read path was
+#         qualified on this; current default, matches fp8_ds_mla pool sizing)
+#   432 = true NVFP4 MLA record (256B E2M1 NoPE + 32B E4M3 group-16 scales +
+#         16B pad + 128B BF16 RoPE). The writer kernel
+#         (concat_and_cache_nvfp4_mla_kernel) hardcodes/asserts this layout,
+#         so the Python page math is the only place 584 is imposed. Flipping
+#         to 432 increases pool capacity ~1.35x (3.11x -> ~4.2x @1M) but the
+#         b12x sparse-MLA READ kernel page-stride must accept the tighter
+#         record — verify with a boot + needle + bench before relying on it.
 # =============================================================================
 set -euo pipefail
 
 PYTHON_ROOT="${PYTHON_ROOT:-/usr/local/lib/python3.12/dist-packages}"
 VLLM="$PYTHON_ROOT/vllm"
+# Envelope: 584 (default, current qualified path) or 432 (true NVFP4 record)
+ENVELOPE="${VLLM_NVFP4_ENVELOPE:-584}"
+case "$ENVELOPE" in
+  584|432) ;;
+  *)
+    echo "[nvfp4-dsv4-kv] ERROR: VLLM_NVFP4_ENVELOPE must be 584 or 432, got '$ENVELOPE'" >&2
+    exit 2
+    ;;
+esac
+echo "[nvfp4-dsv4-kv] envelope: ${ENVELOPE}B/token"
 
 NEEDED_FILES=(
   "$VLLM/models/deepseek_v4/attention.py"
@@ -36,12 +57,14 @@ for f in "${NEEDED_FILES[@]}"; do
   fi
 done
 
-python3 - "$VLLM" <<'PY'
+python3 - "$VLLM" "$ENVELOPE" <<'PY'
 import py_compile
 import sys
 from pathlib import Path
 
 root = Path(sys.argv[1])
+envelope = sys.argv[2]  # "584" or "432"
+envelope_bytes = int(envelope)
 
 
 def replace(path: str, old: str, new: str, what: str) -> None:
@@ -197,34 +220,40 @@ replace(
         else:
             return (num_blocks, block_size, head_size)
 """,
-    """        if cache_dtype_str == "fp8_ds_mla":
+    f"""        if cache_dtype_str == "fp8_ds_mla":
             # DeepseekV4 main MLA: 584B per token (448 NoPE + 128 RoPE + 8 fp8 scale).
             # head_size passed in is the semantic head_dim (512).
             return (num_blocks, block_size, 584)
         if cache_dtype_str == "nvfp4_ds_mla":
-            # Keep DeepSeek V4's proven 584-byte cache envelope so hybrid
-            # MLA/SWA grouping can proceed while testing nvfp4_ds_mla.
-            return (num_blocks, block_size, 584)
+            # True NVFP4 record is 432B (256B E2M1 NoPE + 32B scales + 16B pad
+            # + 128B BF16 RoPE) — the writer kernel asserts exactly 432. When
+            # VLLM_NVFP4_ENVELOPE=584 we keep the fp8-compatible page so the
+            # b12x read kernels stride 584B (qualified path). With 432 the
+            # pool fits ~1.35x more tokens.
+            return (num_blocks, block_size, {envelope_bytes})
         else:
             return (num_blocks, block_size, head_size)
 """,
     "backend KV shape: nvfp4 envelope",
 )
 
-# ---- 5. page size: 584B envelope for deepseek_v4 nvfp4 ----
+# ---- 5. page size: envelope-aware (584 default, 432 true NVFP4 record) ----
 replace(
     "v1/kv_cache_interface.py",
     """            if self.model_version == "deepseek_v4":
                 return self.storage_block_size * 432
             if self.model_version == "glm_fp8_rope":
 """,
-    """            if self.model_version == "deepseek_v4":
-                # Match the fp8_ds_mla 584B envelope the b12x compressed-MLA
-                # kernels read; true 432B NVFP4 record is follow-up work.
-                return self.storage_block_size * 584
+    f"""            if self.model_version == "deepseek_v4":
+                # NVFP4 MLA latent: 432B/token (256B E2M1 NoPE + 32B E4M3
+                # group-16 scales + 16B pad + 128B BF16 RoPE). Envelope
+                # VLLM_NVFP4_ENVELOPE={envelope}: 584 = fp8-compatible page
+                # (b12x read-kernel qualified); 432 = true NVFP4 record
+                # (writer kernel asserts exactly 432).
+                return self.storage_block_size * {envelope_bytes}
             if self.model_version == "glm_fp8_rope":
 """,
-    "page size: 584B envelope for deepseek_v4 nvfp4",
+    f"page size: {envelope}B envelope for deepseek_v4 nvfp4",
 )
 
 print("[nvfp4-dsv4-kv] verifying byte-compile...")

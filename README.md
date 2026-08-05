@@ -1767,7 +1767,10 @@ changing eugr's native mod system:
   (DSV4 packed layout), lifting concurrency from ~1.5x to ~9x. Works for
   fp8 and nvfp4 KV.
 - `mods/nvfp4-dsv4-kv/` — enables `nvfp4_ds_mla` KV (dtype gate + 576B
-  alignment + 584B envelope).
+  alignment + envelope). Envelope is toggleable via `VLLM_NVFP4_ENVELOPE`
+  (default `584` = fp8-compatible page; `432` = true NVFP4 record, ~1.35x
+  more pool capacity — writer kernel asserts 432, read-kernel path needs
+  verification before relying on it).
 
 Both are plain `run.sh` scripts (eugr-native; `--apply-mod` works). The image
 also bakes `mods/` into `/opt/mods` and ships `mods/run_mods.sh`, which applies

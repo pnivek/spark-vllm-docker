@@ -217,6 +217,37 @@ replace(
     "SWA KV shape: nvfp4 envelope",
 )
 
+# ---- 3c. SWA real_page_size_bytes: honor envelope for nvfp4 ----
+# SlidingWindowMLASpec.real_page_size_bytes only branches on fp8_ds_mla and
+# falls through to the head_size*dtype formula for nvfp4 — producing a page
+# size that mismatches the main-MLA envelope and breaks the uniform-groups
+# invariant (assert max(sm) <= max(all) in kv_cache_utils). Patch the nvfp4
+# branch to follow the same envelope as MLAAttentionSpec.
+replace(
+    "v1/kv_cache_interface.py",
+    """        if self.model_version == "deepseek_v4" and self.cache_dtype_str == "fp8_ds_mla":
+            # DeepseekV4 FlashMLA: 448B NoPE + 128B RoPE + 8B fp8 scale = 584B
+            # per token. FlashInfer's contiguous bf16/fp8 cache falls through to
+            # the element-size formula below.
+            return self.storage_block_size * 584
+        assert self.model_version in (None, "deepseek_v4"), (
+""",
+    f"""        if self.model_version == "deepseek_v4" and self.cache_dtype_str == "fp8_ds_mla":
+            # DeepseekV4 FlashMLA: 448B NoPE + 128B RoPE + 8B fp8 scale = 584B
+            # per token. FlashInfer's contiguous bf16/fp8 cache falls through to
+            # the element-size formula below.
+            return self.storage_block_size * 584
+        if self.model_version == "deepseek_v4" and self.cache_dtype_str == "nvfp4_ds_mla":
+            # NVFP4 MLA latent: same record as the main MLA (256B E2M1 NoPE +
+            # 32B E4M3 group-16 scales + 16B pad + 128B BF16 RoPE). Follow
+            # VLLM_NVFP4_ENVELOPE ({envelope}: 584 default, 432 true record)
+            # so the SWA page stays <= the full-MLA page (grouping invariant).
+            return self.storage_block_size * {envelope_bytes}
+        assert self.model_version in (None, "deepseek_v4"), (
+""",
+    "SWA real_page_size_bytes: nvfp4 envelope",
+)
+
 # ---- 4. backend: advertise nvfp4_ds_mla + KV shape branch ----
 replace(
     "models/deepseek_v4/sparse_mla.py",

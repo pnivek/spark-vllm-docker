@@ -152,19 +152,25 @@ For periodic maintenance, I recommend using a filter: `docker builder prune --fi
 
 ### 2026-08-03
 
-#### Profiled wheel caches and prebuilt B12X image
+#### New B12x/SparkInfer image
 
-Bare `--exp-b12x` now pulls `eugr/spark-vllm-b12x:latest`. Add
-`--rebuild-vllm` to compile the maintained B12X fork locally. Wheel-based builds
-use independent BuildKit contexts backed by `.wheel-cache`: regular FlashInfer
-is shared by regular and B12X builds, while custom FlashInfer refs, PRs, and GPU
-targets are isolated. vLLM wheels use `regular`, `b12x`, or `custom` profiles.
+Added `--exp-b12x` (alias: `--experimental-b12x`) as an alternative version built from [a fork by Luke Alonso](https://github.com/local-inference-lab/vllm/tree/dev/gilded-gnosis). This fork supports a collection of experimental high-performance B12X kernels for sm12x architecture. 
 
-### 2026-07-31
+Since it is built from a forked vLLM branch, it will be supported in parallel to the main ("regular") build, at least for the time being.
+
+Specifying `--exp-b12x` without arguments wil pull `eugr/spark-vllm-b12x:latest` from Dockerhub, which is now built and tested together with the main image by CI pipeline on nightly basis (if there are any updates to the source branch or sparkinfer). 
+
+Add `--rebuild-vllm` to compile from the source. 
+
+The preset defaults the image tag to `vllm-node-b12x`; an explicit `-t` still takes precedence. Additional vLLM changes can be layered onto the preset with one or more `--apply-vllm-pr` flags. PRs are applied from the upstream vLLM repository, not from Luke's fork! If any PRs are specified, the script will build from the source, not prebuilt images.
+
+vLLM wheels are not published for this build, but it will reuse published Flashinfer wheels if you build from the source (unless `--rebuild-flashinfer` is specified).
+
+For now, we have only one recipe using this build, with more to come.
 
 #### DeepSeek V4 Flash 0731 B12X cluster recipe
 
-Added the cluster-only `deepseek-v4-flash-0731` recipe for serving `deepseek-ai/DeepSeek-V4-Flash-0731` on a dual DGX Spark cluster. The recipe requires B12X container (vllm-node-b12x) that can be built by using `./build-and-copy.sh --exp-b12x -c` (or just allow the recipe system to build it for you).
+Added the cluster-only `deepseek-v4-flash-0731` recipe for serving `deepseek-ai/DeepSeek-V4-Flash-0731` on a dual DGX Spark cluster. The recipe requires B12X container (vllm-node-b12x) that can be pulled by using `./build-and-copy.sh --exp-b12x -c` (or just allow the recipe system to pull it for you). See details on b12x build above.
 
 ```bash
 ./run-recipe.sh deepseek-v4-flash-0731
@@ -184,7 +190,7 @@ Added the support for
 Add `--setup` on the first run to prepare the container and download and
 distribute the model.
 
-#### Official vLLM earlyoom, InstantTensor, and SciPy support
+#### Official vLLM image support with earlyoom, InstantTensor, and SciPy
 
 `mods/use-official-vllm` now installs `earlyoom`, InstantTensor, and SciPy in
 addition to the compatibility packages needed by other mods. This makes
@@ -203,19 +209,6 @@ resolution.
   -v "$PWD/models:/models" \
   exec vllm serve /models/qwen3.6-35b-a4b-nvfp4 ...
 ```
-
-### 2026-07-21
-
-#### B12X package renamed to SparkInfer
-
-The external `b12x` kernel package used by `--exp-b12x` is now distributed and
-imported as `sparkinfer`. The source repository remains `lukealonso/b12x`.
-
-### 2026-07-20
-
-#### Experimental B12X build preset
-
-Added `--exp-b12x` (alias: `--experimental-b12x`) as a source-build preset to build vLLM from [a fork by Luke Alonso](https://github.com/local-inference-lab/vllm/tree/dev/gilded-gnosis). This fork supports a collection of experimental high-performance B12X kernels for sm12x architecture. The preset defaults the image tag to `vllm-node-b12x`; an explicit `-t` still takes precedence. Additional vLLM changes can be layered onto the preset with one or more `--apply-vllm-pr` flags. PRs are applied from the upstream vLLM repository, not from Luke's fork!
 
 ### 2026-07-14
 

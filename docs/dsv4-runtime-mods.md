@@ -31,10 +31,11 @@ at container start. Selection is **not** env-driven:
 | (unset / "") | stock eugr image (fp8 KV, concurrency ~1.5x) |
 | `dsv4-kv-memory-estimate` | honest per-request KV estimate (~9x concurrency) |
 | `nvfp4-dsv4-kv` | enable nvfp4_ds_mla KV (dtype gate + alignment + envelope) |
+| `sparkinfer-compressed-physical-stride` | backport SparkInfer 4448acf / PR #106: honor the compressed cache's physical page stride in decode and prefill |
 | `VLLM_NVFP4_ENVELOPE=432` (env, with above) | true NVFP4 record (432B) instead of fp8-compatible 584B page — ~1.35x more pool capacity; verify read-kernel path first |
-| `dsv4-kv-memory-estimate nvfp4-dsv4-kv` | current production config |
+| `dsv4-kv-memory-estimate nvfp4-dsv4-kv sparkinfer-compressed-physical-stride` | current production config with PR #106 correction |
 
-Run order: memory-estimate first (independent), then nvfp4.
+Run order: memory-estimate first (independent), then nvfp4, then the SparkInfer physical-stride correction.
 
 ## Deployment paths
 
@@ -42,7 +43,7 @@ Run order: memory-estimate first (independent), then nvfp4.
 
 ```yaml
 environment:
-  - VLLM_MODS=dsv4-kv-memory-estimate nvfp4-dsv4-kv
+  - VLLM_MODS=dsv4-kv-memory-estimate nvfp4-dsv4-kv sparkinfer-compressed-physical-stride
 command:
   - |
     bash /opt/mods/run_mods.sh && \
@@ -73,7 +74,7 @@ command: >-
   --distributed-executor-backend mp --nnodes 2 --node-rank 0
   --master-addr 192.168.0.172 --master-port 29506
 environment: |
-  VLLM_MODS=dsv4-kv-memory-estimate nvfp4-dsv4-kv
+  VLLM_MODS=dsv4-kv-memory-estimate nvfp4-dsv4-kv sparkinfer-compressed-physical-stride
   HF_TOKEN=[[HF_TOKEN]]
   HF_HOME=/cache/huggingface
   HF_HUB_OFFLINE=1

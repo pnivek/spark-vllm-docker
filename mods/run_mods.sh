@@ -19,6 +19,7 @@
 # Mods currently available (drop run.sh files into /opt/mods/<name>/):
 #   dsv4-kv-memory-estimate  — fix per-request KV memory estimate (fp8+nvfp4)
 #   nvfp4-dsv4-kv            — enable nvfp4_ds_mla KV (dtype gate+alignment)
+#   sparkinfer-compressed-physical-stride — backport SparkInfer PR #106
 # =============================================================================
 set -euo pipefail
 

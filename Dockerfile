@@ -1108,7 +1108,10 @@ RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv \
 RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv \
     if [ -n "$SPARKINFER_REPO" ]; then \
         echo "Refreshing SparkInfer source (cache key: $SPARKINFER_CACHEBUST)" && \
-        git clone --depth 1 --branch "$SPARKINFER_REF" "$SPARKINFER_REPO" /tmp/sparkinfer-source && \
+        git init /tmp/sparkinfer-source && \
+        git -C /tmp/sparkinfer-source remote add origin "$SPARKINFER_REPO" && \
+        git -C /tmp/sparkinfer-source fetch --depth 1 origin "$SPARKINFER_REF" && \
+        git -C /tmp/sparkinfer-source checkout --detach FETCH_HEAD && \
         SPARKINFER_COMMIT=$(git -C /tmp/sparkinfer-source rev-parse HEAD) && \
         uv pip install --reinstall --no-deps /tmp/sparkinfer-source && \
         printf '%s\n' "$SPARKINFER_COMMIT" > /workspace/sparkinfer-source-commit && \

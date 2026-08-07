@@ -1,0 +1,3 @@
+FROM 192.168.0.181:5000/pnivek/vllm-node-b12x@sha256:b4f025e416ff966e8eb916de33c10844ff5e359a98fa232a682fc72c2dd2469b
+
+COPY mods/sparkinfer-compressed-physical-stride /opt/mods/sparkinfer-compressed-physical-stride
